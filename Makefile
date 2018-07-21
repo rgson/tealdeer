@@ -3,6 +3,9 @@
 SHELL := /bin/sh
 
 srcdir := src
+prefix := /usr/local
+exec_prefix := $(prefix)
+bindir := $(exec_prefix)/bin
 
 .SUFFIXES:
 
@@ -14,7 +17,7 @@ binaries := $(foreach target,$(targets),$(outdir)/tldr-$(target))
 target_to_rusttarget = $(subst -,-unknown-linux-,$1)
 rusttarget_to_target = $(subst -unknown-linux-,-,$1)
 
-.PHONY: all build clean rebuild sign
+.PHONY: all build clean rebuild sign install
 
 all: build
 
@@ -27,6 +30,8 @@ rebuild: clean build
 
 sign: $(foreach binary,$(binaries),$(binary).sig)
 
+install: $(DESTDIR)$(bindir)/tldr
+
 target/%/release/tldr: $(wildcard $(srcdir)/*)
 	CONTAINER=messense/rust-musl-cross:$(call rusttarget_to_target,$*) && \
 		docker pull $$CONTAINER && \
@@ -35,6 +40,18 @@ target/%/release/tldr: $(wildcard $(srcdir)/*)
 
 %.sig: %
 	gpg -a --output $@ --detach-sig $<
+
+ifeq ($(words $(targets)),1)
+$(DESTDIR)$(bindir)/tldr: $(outdir)/tldr-$(targets)
+	mkdir -p $(dir $@)
+	install -m 0755 $< $@
+else
+$(DESTDIR)$(bindir)/tldr:
+	@echo 'Installation requires a single architecture, e.g.'
+	@echo '  make install targets=x86_64-musl'
+	@echo
+	@exit 1
+endif
 
 .SECONDEXPANSION:
 
